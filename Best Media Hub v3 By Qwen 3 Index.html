@@ -1,0 +1,2460 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI API Manager</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        primary: '#6366f1',
+                        secondary: '#8b5cf6',
+                        dark: '#0f172a',
+                        light: '#f8fafc',
+                        success: '#10b981',
+                        warning: '#f59e0b',
+                        danger: '#ef4444',
+                        info: '#3b82f6'
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        body {
+            background-color: #000;
+            color: #fff;
+            min-height: 100vh;
+        }
+        .api-card {
+            transition: all 0.3s ease;
+            border-left: 4px solid transparent;
+        }
+        .api-card:hover {
+            transform: translateY(-5px);
+            border-left: 4px solid #8b5cf6;
+        }
+        .tab-active {
+            border-bottom: 3px solid #8b5cf6;
+            color: #8b5cf6;
+        }
+        .workflow-node {
+            transition: all 0.3s ease;
+        }
+        .workflow-node:hover {
+            transform: scale(1.05);
+        }
+        .connection-line {
+            stroke: #64748b;
+            stroke-width: 2;
+            marker-end: url(#arrowhead);
+        }
+        .status-indicator {
+            display: inline-block;
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            margin-right: 8px;
+        }
+        .status-online {
+            background-color: #10b981;
+            box-shadow: 0 0 10px #10b981;
+        }
+        .status-offline {
+            background-color: #ef4444;
+        }
+        .status-warning {
+            background-color: #f59e0b;
+        }
+        .glow {
+            box-shadow: 0 0 15px rgba(139, 92, 246, 0.5);
+        }
+        .sidebar {
+            transition: all 0.3s ease;
+        }
+        @media (max-width: 768px) {
+            .sidebar {
+                transform: translateX(-100%);
+            }
+            .sidebar.open {
+                transform: translateX(0);
+            }
+        }
+        .login-container {
+            max-width: 400px;
+            margin: 100px auto;
+        }
+        .app-container {
+            display: none;
+        }
+        .auth-container {
+            display: block;
+        }
+        .gallery-item {
+            transition: all 0.3s ease;
+        }
+        .gallery-item:hover {
+            transform: scale(1.05);
+        }
+        .slider-image {
+            max-height: 80vh;
+            object-fit: contain;
+        }
+        .prompt-generator-modal {
+            z-index: 1000;
+        }
+        .advanced-options {
+            max-height: 0;
+            overflow: hidden;
+            transition: max-height 0.3s ease;
+        }
+        .advanced-options.open {
+            max-height: 500px;
+        }
+        .progress-bar {
+            transition: width 0.5s ease;
+        }
+    </style>
+</head>
+<body class="text-light">
+    <!-- Login Screen -->
+    <div id="loginScreen" class="auth-container">
+        <div class="login-container bg-dark/80 p-8 rounded-xl border border-gray-800">
+            <div class="text-center mb-8">
+                <i class="fas fa-brain text-4xl text-primary mb-4"></i>
+                <h1 class="text-3xl font-bold">AI API Manager</h1>
+                <p class="text-gray-400 mt-2">Admin Login</p>
+            </div>
+            <form id="loginForm">
+                <div class="mb-4">
+                    <label class="block text-gray-300 mb-2">Username</label>
+                    <input type="text" id="username" class="w-full bg-dark/50 border border-gray-700 rounded-lg px-4 py-2 focus:outline-none focus:border-primary" placeholder="Enter username" required>
+                </div>
+                <div class="mb-6">
+                    <label class="block text-gray-300 mb-2">Password</label>
+                    <input type="password" id="password" class="w-full bg-dark/50 border border-gray-700 rounded-lg px-4 py-2 focus:outline-none focus:border-primary" placeholder="Enter password" required>
+                </div>
+                <button type="submit" class="w-full bg-primary hover:bg-secondary py-2 rounded-lg font-medium">
+                    Sign In
+                </button>
+                <div class="mt-4 text-center">
+                    <a href="#" class="text-primary text-sm">Forgot Password?</a>
+                </div>
+                <div class="mt-6 text-center text-gray-400 text-sm">
+                    <p>Demo Credentials:</p>
+                    <p>Username: admin | Password: Admin@1675</p>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Gallery Modal -->
+    <div id="galleryModal" class="fixed inset-0 bg-black/90 z-50 hidden flex items-center justify-center">
+        <div class="relative w-full h-full flex flex-col">
+            <div class="absolute top-4 right-4 z-10">
+                <button id="closeGallery" class="text-white text-2xl p-2 bg-black/50 rounded-full">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="flex-1 flex items-center justify-center">
+                <img id="galleryImage" src="" alt="Gallery Image" class="slider-image max-w-full max-h-full object-contain">
+            </div>
+            <div class="absolute bottom-4 left-0 right-0 flex justify-center">
+                <div class="flex space-x-2">
+                    <button id="prevImage" class="text-white p-2 bg-black/50 rounded-full">
+                        <i class="fas fa-chevron-left"></i>
+                    </button>
+                    <button id="nextImage" class="text-white p-2 bg-black/50 rounded-full">
+                        <i class="fas fa-chevron-right"></i>
+                    </button>
+                </div>
+            </div>
+            <div class="absolute bottom-4 right-4">
+                <button id="downloadGalleryImage" class="text-white p-2 bg-black/50 rounded-full">
+                    <i class="fas fa-download"></i>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Prompt Generator Modal -->
+    <div id="promptGeneratorModal" class="fixed inset-0 bg-black/70 flex items-center justify-center z-50 prompt-generator-modal hidden">
+        <div class="bg-dark w-full max-w-2xl rounded-xl border border-gray-800 p-6">
+            <div class="flex justify-between items-center mb-6">
+                <h3 class="text-xl font-bold">Prompt Generator</h3>
+                <button id="closePromptGenerator" class="text-gray-400 hover:text-white">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="space-y-4">
+                <div>
+                    <label class="block text-gray-300 mb-2">Subject</label>
+                    <input type="text" id="promptSubject" class="w-full bg-dark/50 border border-gray-700 rounded-lg px-4 py-2 focus:outline-none focus:border-primary" placeholder="What do you want to generate?">
+                </div>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-gray-300 mb-2">Style</label>
+                        <select id="promptStyle" class="w-full bg-dark/50 border border-gray-700 rounded-lg px-4 py-2 focus:outline-none focus:border-primary">
+                            <option value="">Select Style</option>
+                            <option value="realistic">Realistic</option>
+                            <option value="anime">Anime</option>
+                            <option value="digital art">Digital Art</option>
+                            <option value="oil painting">Oil Painting</option>
+                            <option value="photography">Photography</option>
+                            <option value="cinematic">Cinematic</option>
+                            <option value="fantasy">Fantasy</option>
+                            <option value="cyberpunk">Cyberpunk</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-gray-300 mb-2">Quality</label>
+                        <select id="promptQuality" class="w-full bg-dark/50 border border-gray-700 rounded-lg px-4 py-2 focus:outline-none focus:border-primary">
+                            <option value="">Select Quality</option>
+                            <option value="high quality">High Quality</option>
+                            <option value="ultra detailed">Ultra Detailed</option>
+                            <option value="professional">Professional</option>
+                            <option value="masterpiece">Masterpiece</option>
+                        </select>
+                    </div>
+                </div>
+                <div>
+                    <label class="block text-gray-300 mb-2">Additional Details</label>
+                    <textarea id="promptDetails" class="w-full h-24 bg-dark/50 border border-gray-700 rounded-lg p-4 focus:outline-none focus:border-primary" placeholder="Add any specific details..."></textarea>
+                </div>
+                <div class="flex justify-end space-x-3">
+                    <button id="cancelPrompt" class="px-4 py-2 border border-gray-700 rounded-lg hover:bg-dark">
+                        Cancel
+                    </button>
+                    <button id="generatePrompt" class="px-4 py-2 bg-primary hover:bg-secondary rounded-lg">
+                        Generate Prompt
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Main Application -->
+    <div id="appContainer" class="app-container container mx-auto px-4 py-8">
+        <!-- Header -->
+        <header class="flex flex-col md:flex-row justify-between items-center mb-8">
+            <div class="flex items-center mb-4 md:mb-0">
+                <i class="fas fa-brain text-3xl text-primary mr-3"></i>
+                <h1 class="text-3xl font-bold bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">
+                    AI API Manager
+                </h1>
+            </div>
+            <div class="flex items-center space-x-4">
+                <button id="themeToggle" class="bg-dark/50 p-2 rounded-lg">
+                    <i class="fas fa-moon"></i>
+                </button>
+                <button id="toggleSidebar" class="md:hidden bg-primary p-2 rounded-lg">
+                    <i class="fas fa-bars"></i>
+                </button>
+                <div class="flex items-center bg-dark/50 px-4 py-2 rounded-lg">
+                    <i class="fas fa-user-circle text-xl mr-2"></i>
+                    <span>Admin User</span>
+                </div>
+                <button id="logoutBtn" class="bg-danger/20 hover:bg-danger/30 p-2 rounded-lg text-danger">
+                    <i class="fas fa-sign-out-alt"></i>
+                </button>
+            </div>
+        </header>
+
+        <div class="flex flex-col md:flex-row gap-6">
+            <!-- Sidebar Navigation -->
+            <aside id="sidebar" class="sidebar fixed md:static z-10 md:z-auto w-64 bg-dark/80 backdrop-blur-sm rounded-xl p-4 h-fit">
+                <nav>
+                    <ul class="space-y-2">
+                        <li>
+                            <a href="#" class="tab-link active flex items-center p-3 rounded-lg hover:bg-dark transition" data-tab="dashboard">
+                                <i class="fas fa-home mr-3"></i> Dashboard
+                            </a>
+                        </li>
+                        <li>
+                            <a href="#" class="tab-link flex items-center p-3 rounded-lg hover:bg-dark transition" data-tab="gallery">
+                                <i class="fas fa-images mr-3"></i> Gallery
+                            </a>
+                        </li>
+                        <li>
+                            <a href="#" class="tab-link flex items-center p-3 rounded-lg hover:bg-dark transition" data-tab="t2i">
+                                <i class="fas fa-paint-brush mr-3"></i> T2I Generator
+                            </a>
+                        </li>
+                        <li>
+                            <a href="#" class="tab-link flex items-center p-3 rounded-lg hover:bg-dark transition" data-tab="body-shaper">
+                                <i class="fas fa-child mr-3"></i> Body Shaper
+                            </a>
+                        </li>
+                        <li>
+                            <a href="#" class="tab-link flex items-center p-3 rounded-lg hover:bg-dark transition" data-tab="try-on">
+                                <i class="fas fa-tshirt mr-3"></i> Virtual Try-On
+                            </a>
+                        </li>
+                        <li>
+                            <a href="#" class="tab-link flex items-center p-3 rounded-lg hover:bg-dark transition" data-tab="editing">
+                                <i class="fas fa-edit mr-3"></i> Image Editing
+                            </a>
+                        </li>
+                        <li>
+                            <a href="#" class="tab-link flex items-center p-3 rounded-lg hover:bg-dark transition" data-tab="custom-editing">
+                                <i class="fas fa-comments mr-3"></i> AI Chat Editing
+                            </a>
+                        </li>
+                        <li>
+                            <a href="#" class="tab-link flex items-center p-3 rounded-lg hover:bg-dark transition" data-tab="apis">
+                                <i class="fas fa-plug mr-3"></i> API Providers
+                            </a>
+                        </li>
+                        <li>
+                            <a href="#" class="tab-link flex items-center p-3 rounded-lg hover:bg-dark transition" data-tab="workflows">
+                                <i class="fas fa-project-diagram mr-3"></i> Workflows
+                            </a>
+                        </li>
+                        <li>
+                            <a href="#" class="tab-link flex items-center p-3 rounded-lg hover:bg-dark transition" data-tab="usage">
+                                <i class="fas fa-chart-line mr-3"></i> Usage Analytics
+                            </a>
+                        </li>
+                        <li>
+                            <a href="#" class="tab-link flex items-center p-3 rounded-lg hover:bg-dark transition" data-tab="errors">
+                                <i class="fas fa-exclamation-triangle mr-3"></i> Error Handling
+                            </a>
+                        </li>
+                        <li>
+                            <a href="#" class="tab-link flex items-center p-3 rounded-lg hover:bg-dark transition" data-tab="users">
+                                <i class="fas fa-users mr-3"></i> User Management
+                            </a>
+                        </li>
+                        <li>
+                            <a href="#" class="tab-link flex items-center p-3 rounded-lg hover:bg-dark transition" data-tab="settings">
+                                <i class="fas fa-cog mr-3"></i> Settings
+                            </a>
+                        </li>
+                    </ul>
+                </nav>
+            </aside>
+
+            <!-- Main Content -->
+            <main class="flex-1">
+                <!-- Dashboard Tab -->
+                <div id="dashboard" class="tab-content">
+                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+                        <div class="bg-dark/80 p-6 rounded-xl border border-gray-800">
+                            <div class="flex justify-between items-center">
+                                <div>
+                                    <p class="text-gray-400">Total APIs</p>
+                                    <h3 class="text-2xl font-bold">24</h3>
+                                </div>
+                                <div class="p-3 bg-primary/20 rounded-lg">
+                                    <i class="fas fa-plug text-primary text-xl"></i>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="bg-dark/80 p-6 rounded-xl border border-gray-800">
+                            <div class="flex justify-between items-center">
+                                <div>
+                                    <p class="text-gray-400">Active Workflows</p>
+                                    <h3 class="text-2xl font-bold">18</h3>
+                                </div>
+                                <div class="p-3 bg-success/20 rounded-lg">
+                                    <i class="fas fa-project-diagram text-success text-xl"></i>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="bg-dark/80 p-6 rounded-xl border border-gray-800">
+                            <div class="flex justify-between items-center">
+                                <div>
+                                    <p class="text-gray-400">Errors Today</p>
+                                    <h3 class="text-2xl font-bold">3</h3>
+                                </div>
+                                <div class="p-3 bg-danger/20 rounded-lg">
+                                    <i class="fas fa-exclamation-circle text-danger text-xl"></i>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="bg-dark/80 p-6 rounded-xl border border-gray-800">
+                            <div class="flex justify-between items-center">
+                                <div>
+                                    <p class="text-gray-400">Tokens Used</p>
+                                    <h3 class="text-2xl font-bold">1.2M</h3>
+                                </div>
+                                <div class="p-3 bg-info/20 rounded-lg">
+                                    <i class="fas fa-coins text-info text-xl"></i>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+                        <div class="bg-dark/80 p-6 rounded-xl border border-gray-800">
+                            <h3 class="text-xl font-bold mb-4">API Status Overview</h3>
+                            <canvas id="apiStatusChart" height="200"></canvas>
+                        </div>
+                        <div class="bg-dark/80 p-6 rounded-xl border border-gray-800">
+                            <h3 class="text-xl font-bold mb-4">Token Usage</h3>
+                            <canvas id="tokenUsageChart" height="200"></canvas>
+                        </div>
+                    </div>
+
+                    <div class="bg-dark/80 p-6 rounded-xl border border-gray-800">
+                        <div class="flex justify-between items-center mb-6">
+                            <h3 class="text-xl font-bold">Recent Activity</h3>
+                            <button class="text-primary hover:text-secondary">
+                                <i class="fas fa-sync"></i> Refresh
+                            </button>
+                        </div>
+                        <div class="space-y-4">
+                            <div class="flex items-center p-3 bg-dark/50 rounded-lg">
+                                <div class="mr-4">
+                                    <div class="w-10 h-10 rounded-full bg-primary/20 flex items-center justify-center">
+                                        <i class="fas fa-check text-primary"></i>
+                                    </div>
+                                </div>
+                                <div class="flex-1">
+                                    <p class="font-medium">Workflow "Image Generation" completed successfully</p>
+                                    <p class="text-sm text-gray-400">2 minutes ago</p>
+                                </div>
+                            </div>
+                            <div class="flex items-center p-3 bg-dark/50 rounded-lg">
+                                <div class="mr-4">
+                                    <div class="w-10 h-10 rounded-full bg-warning/20 flex items-center justify-center">
+                                        <i class="fas fa-exclamation text-warning"></i>
+                                    </div>
+                                </div>
+                                <div class="flex-1">
+                                    <p class="font-medium">API rate limit approaching for OpenAI GPT-4</p>
+                                    <p class="text-sm text-gray-400">15 minutes ago</p>
+                                </div>
+                            </div>
+                            <div class="flex items-center p-3 bg-dark/50 rounded-lg">
+                                <div class="mr-4">
+                                    <div class="w-10 h-10 rounded-full bg-success/20 flex items-center justify-center">
+                                        <i class="fas fa-plus text-success"></i>
+                                    </div>
+                                </div>
+                                <div class="flex-1">
+                                    <p class="font-medium">New API provider "Claude 3" added</p>
+                                    <p class="text-sm text-gray-400">1 hour ago</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Gallery Tab -->
+                <div id="gallery" class="tab-content hidden">
+                    <div class="flex justify-between items-center mb-6">
+                        <h2 class="text-2xl font-bold">Image Gallery</h2>
+                        <div class="flex space-x-2">
+                            <button id="clearGallery" class="bg-danger hover:bg-danger/80 px-4 py-2 rounded-lg">
+                                <i class="fas fa-trash mr-2"></i> Clear Gallery
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                        <div class="gallery-item bg-dark/80 rounded-xl overflow-hidden border border-gray-800 cursor-pointer" data-src="https://images.unsplash.com/photo-1506744038136-46273834b3fb">
+                            <img src="https://images.unsplash.com/photo-1506744038136-46273834b3fb" alt="Gallery Image" class="w-full h-48 object-cover">
+                            <div class="p-3">
+                                <p class="text-sm truncate">Mountain Landscape</p>
+                                <div class="flex justify-between mt-2">
+                                    <button class="text-primary text-sm"><i class="fas fa-download"></i></button>
+                                    <button class="text-danger text-sm"><i class="fas fa-trash"></i></button>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="gallery-item bg-dark/80 rounded-xl overflow-hidden border border-gray-800 cursor-pointer" data-src="https://images.unsplash.com/photo-1470071459604-3b5ec3a7fe05">
+                            <img src="https://images.unsplash.com/photo-1470071459604-3b5ec3a7fe05" alt="Gallery Image" class="w-full h-48 object-cover">
+                            <div class="p-3">
+                                <p class="text-sm truncate">Forest Mist</p>
+                                <div class="flex justify-between mt-2">
+                                    <button class="text-primary text-sm"><i class="fas fa-download"></i></button>
+                                    <button class="text-danger text-sm"><i class="fas fa-trash"></i></button>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="gallery-item bg-dark/80 rounded-xl overflow-hidden border border-gray-800 cursor-pointer" data-src="https://images.unsplash.com/photo-1469474968028-56623f02e42e">
+                            <img src="https://images.unsplash.com/photo-1469474968028-56623f02e42e" alt="Gallery Image" class="w-full h-48 object-cover">
+                            <div class="p-3">
+                                <p class="text-sm truncate">Ocean Sunset</p>
+                                <div class="flex justify-between mt-2">
+                                    <button class="text-primary text-sm"><i class="fas fa-download"></i></button>
+                                    <button class="text-danger text-sm"><i class="fas fa-trash"></i></button>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="gallery-item bg-dark/80 rounded-xl overflow-hidden border border-gray-800 cursor-pointer" data-src="https://images.unsplash.com/photo-1418065460487-3e41a6c84dc5">
+                            <img src="https://images.unsplash.com/photo-1418065460487-3e41a6c84dc5" alt="Gallery Image" class="w-full h-48 object-cover">
+                            <div class="p-3">
+                                <p class="text-sm truncate">Green Forest</p>
+                                <div class="flex justify-between mt-2">
+                                    <button class="text-primary text-sm"><i class="fas fa-download"></i></button>
+                                    <button class="text-danger text-sm"><i class="fas fa-trash"></i></button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- T2I Generator Tab -->
+                <div id="t2i" class="tab-content hidden">
+                    <div class="flex justify-between items-center mb-6">
+                        <h2 class="text-2xl font-bold">Text-to-Image Generator</h2>
+                        <div class="flex space-x-2">
+                            <button id="pauseResumeBtn" class="bg-warning hover:bg-warning/80 px-4 py-2 rounded-lg">
+                                <i class="fas fa-pause mr-2"></i> Pause
+                            </button>
+                            <button id="cancelBtn" class="bg-danger hover:bg-danger/80 px-4 py-2 rounded-lg">
+                                <i class="fas fa-times mr-2"></i> Cancel
+                            </button>
+                            <button id="downloadBtn" class="bg-success hover:bg-success/80 px-4 py-2 rounded-lg">
+                                <i class="fas fa-download mr-2"></i> Download
+                            </button>
+                            <button id="moveToGalleryBtn" class="bg-info hover:bg-info/80 px-4 py-2 rounded-lg">
+                                <i class="fas fa-images mr-2"></i> Move to Gallery
+                            </button>
+                            <button id="openPromptGenerator" class="bg-primary hover:bg-secondary px-4 py-2 rounded-lg">
+                                <i class="fas fa-magic mr-2"></i> Prompt Generator
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                        <div class="lg:col-span-2 bg-dark/80 p-6 rounded-xl border border-gray-800">
+                            <h3 class="text-xl font-bold mb-4">Prompt</h3>
+                            <textarea class="w-full h-40 bg-dark/50 border border-gray-700 rounded-lg p-4 focus:outline-none focus:border-primary" placeholder="Describe the image you want to generate..."></textarea>
+                            
+                            <div class="mt-6">
+                                <h3 class="text-xl font-bold mb-4">Generated Image</h3>
+                                <div class="bg-dark/50 border border-gray-700 rounded-lg h-96 flex items-center justify-center">
+                                    <p class="text-gray-400">Generated image will appear here</p>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="bg-dark/80 p-6 rounded-xl border border-gray-800">
+                            <h3 class="text-xl font-bold mb-4">Model Settings</h3>
+                            <div class="space-y-4">
+                                <div>
+                                    <label class="block text-gray-300 mb-2">Model</label>
+                                    <select class="w-full bg-dark/50 border border-gray-700 rounded-lg px-4 py-2 focus:outline-none focus:border-primary">
+                                        <option>Stable Diffusion XL</option>
+                                        <option>DALL-E 3</option>
+                                        <option>Midjourney</option>
+                                        <option>Qwen Image Edit</option>
+                                    </select>
+                                </div>
+                                
+                                <div>
+                                    <label class="block text-gray-300 mb-2">Mood</label>
+                                    <select class="w-full bg-dark/50 border border-gray-700 rounded-lg px-4 py-2 focus:outline-none focus:border-primary">
+                                        <option>Calm</option>
+                                        <option>Energetic</option>
+                                        <option>Mysterious</option>
+                                        <option>Romantic</option>
+                                        <option>Melancholic</option>
+                                        <option>Joyful</option>
+                                        <option>Dramatic</option>
+                                        <option>Serene</option>
+                                        <option>Chaotic</option>
+                                        <option>Peaceful</option>
+                                    </select>
+                                </div>
+                                
+                                <div>
+                                    <label class="block text-gray-300 mb-2">Lights</label>
+                                    <select class="w-full bg-dark/50 border border-gray-700 rounded-lg px-4 py-2 focus:outline-none focus:border-primary">
+                                        <option>Studio Light</option>
+                                        <option>Golden Hour</option>
+                                        <option>Blue Hour</option>
+                                        <option>Overcast</option>
+                                        <option>Backlight</option>
+                                        <option>Side Light</option>
+                                        <option>Hard Light</option>
+                                        <option>Soft Light</option>
+                                        <option>Neon</option>
+                                        <option>Candlelight</option>
+                                    </select>
+                                </div>
+                                
+                                <div>
+                                    <label class="block text-gray-300 mb-2">Art Style</label>
+                                    <select class="w-full bg-dark/50 border border-gray-700 rounded-lg px-4 py-2 focus:outline-none focus:border-primary">
+                                        <option>Anime</option>
+                                        <option>Hyper Realistic</option>
+                                        <option>Photo Realistic</option>
+                                        <option>Cinematic</option>
+                                        <option>Casual</option>
+                                        <option>Classic 1986's Cam</option>
+                                        <option>Oil Painting</option>
+                                        <option>Watercolor</option>
+                                        <option>Digital Art</option>
+                                        <option>Sketch</option>
+                                    </select>
+                                </div>
+                                
+                                <div>
+                                    <label class="block text-gray-300 mb-2">Camera Model</label>
+                                    <select class="w-full bg-dark/50 border border-gray-700 rounded-lg px-4 py-2 focus:outline-none focus:border-primary">
+                                        <option>Canon EOS R5</option>
+                                        <option>Nikon D850</option>
+                                        <option>Sony A7R IV</option>
+                                        <option>Fujifilm GFX 100</option>
+                                        <option>Hasselblad X1D II</option>
+                                        <option>Leica M10R</option>
+                                        <option>Pentax 645Z</option>
+                                        <option>Olympus OM-D E-M1 Mark III</option>
+                                        <option>Panasonic S1R</option>
+                                        <option>Phase One XF IQ4</option>
+                                    </select>
+                                </div>
+                                
+                                <div>
+                                    <label class="block text-gray-300 mb-2">Screen Ratio</label>
+                                    <select class="w-full bg-dark/50 border border-gray-700 rounded-lg px-4 py-2 focus:outline-none focus:border-primary">
+                                        <option>1:1 (Square)</option>
+                                        <option>4:3</option>
+                                        <option>3:2</option>
+                                        <option>16:9</option>
+                                        <option>9:16</option>
+                                        <option>9:21 (Ultra Wide)</option>
+                                        <option>21:9 (Ultrawide Cinema)</option>
+                                        <option>5:4</option>
+                                        <option>2:3</option>
+                                        <option>Custom</option>
+                                    </select>
+                                </div>
+                                
+                                <div>
+                                    <label class="block text-gray-300 mb-2">Image Resolution</label>
+                                    <select class="w-full bg-dark/50 border border-gray-700 rounded-lg px-4 py-2 focus:outline-none focus:border-primary">
+                                        <option>480p (SD)</option>
+                                        <option>720p (HD)</option>
+                                        <option>1080p (Full HD)</option>
+                                        <option>1440p (QHD)</option>
+                                        <option>2K</option>
+                                        <option>4K (UHD)</option>
+                                        <option>8K</option>
+                                        <option>Custom</option>
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Body Shaper Tab -->
+                <div id="body-shaper" class="tab-content hidden">
+                    <div class="flex justify-between items-center mb-6">
+                        <h2 class="text-2xl font-bold">Body Shaper</h2>
+                        <button class="bg-primary hover:bg-secondary px-4 py-2 rounded-lg">
+                            <i class="fas fa-sync mr-2"></i> Apply Changes
+                        </button>
+                    </div>
+                    
+                    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                        <div class="lg:col-span-2 bg-dark/80 p-6 rounded-xl border border-gray-800">
+                            <h3 class="text-xl font-bold mb-4">Upload Image</h3>
+                            <div class="border-2 border-dashed border-gray-700 rounded-lg h-96 flex flex-col items-center justify-center p-8 text-center">
+                                <i class="fas fa-cloud-upload-alt text-4xl text-gray-500 mb-4"></i>
+                                <p class="text-gray-400 mb-4">Drag & drop your image here or click to browse</p>
+                                <button class="bg-primary hover:bg-secondary px-4 py-2 rounded-lg">
+                                    <i class="fas fa-folder-open mr-2"></i> Browse Files
+                                </button>
+                                <p class="text-gray-500 text-sm mt-4">Supports JPG, PNG, WebP up to 10MB</p>
+                            </div>
+                            
+                            <div class="mt-6">
+                                <h3 class="text-xl font-bold mb-4">Result</h3>
+                                <div class="bg-dark/50 border border-gray-700 rounded-lg h-96 flex items-center justify-center">
+                                    <p class="text-gray-400">Modified image will appear here</p>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="bg-dark/80 p-6 rounded-xl border border-gray-800">
+                            <h3 class="text-xl font-bold mb-4">Body Adjustment</h3>
+                            <div class="space-y-6">
+                                <div>
+                                    <div class="flex justify-between mb-2">
+                                        <span class="text-gray-300">Waist Size</span>
+                                        <span>75%</span>
+                                    </div>
+                                    <input type="range" min="50" max="150" value="75" class="w-full">
+                                </div>
+                                
+                                <div>
+                                    <div class="flex justify-between mb-2">
+                                        <span class="text-gray-300">Hip Size</span>
+                                        <span>110%</span>
+                                    </div>
+                                    <input type="range" min="50" max="150" value="110" class="w-full">
+                                </div>
+                                
+                                <div>
+                                    <div class="flex justify-between mb-2">
+                                        <span class="text-gray-300">Chest Size</span>
+                                        <span>90%</span>
+                                    </div>
+                                    <input type="range" min="50" max="150" value="90" class="w-full">
+                                </div>
+                                
+                                <div>
+                                    <div class="flex justify-between mb-2">
+                                        <span class="text-gray-300">Leg Length</span>
+                                        <span>105%</span>
+                                    </div>
+                                    <input type="range" min="80" max="120" value="105" class="w-full">
+                                </div>
+                                
+                                <div>
+                                    <div class="flex justify-between mb-2">
+                                        <span class="text-gray-300">Shoulder Width</span>
+                                        <span>95%</span>
+                                    </div>
+                                    <input type="range" min="80" max="120" value="95" class="w-full">
+                                </div>
+                                
+                                <div class="pt-4">
+                                    <h4 class="font-bold mb-3">Body Enhancement</h4>
+                                    <div class="space-y-3">
+                                        <div class="flex items-center justify-between">
+                                            <span class="text-gray-300">Skin Smoothing</span>
+                                            <div class="relative inline-block w-12 h-6">
+                                                <input type="checkbox" class="opacity-0 w-0 h-0 peer" id="skinSmooth" checked>
+                                                <label for="skinSmooth" class="absolute cursor-pointer top-0 left-0 right-0 bottom-0 bg-gray-700 rounded-full transition peer-checked:bg-primary peer-checked:before:translate-x-6 before:absolute before:h-5 before:w-5 before:left-0.5 before:bottom-0.5 before:bg-white before:rounded-full before:transition"></label>
+                                            </div>
+                                        </div>
+                                        <div class="flex items-center justify-between">
+                                            <span class="text-gray-300">Face Enhancement</span>
+                                            <div class="relative inline-block w-12 h-6">
+                                                <input type="checkbox" class="opacity-0 w-0 h-0 peer" id="faceEnhance">
+                                                <label for="faceEnhance" class="absolute cursor-pointer top-0 left-0 right-0 bottom-0 bg-gray-700 rounded-full transition peer-checked:bg-primary peer-checked:before:translate-x-6 before:absolute before:h-5 before:w-5 before:left-0.5 before:bottom-0.5 before:bg-white before:rounded-full before:transition"></label>
+                                            </div>
+                                        </div>
+                                        <div class="flex items-center justify-between">
+                                            <span class="text-gray-300">Hair Enhancement</span>
+                                            <div class="relative inline-block w-12 h-6">
+                                                <input type="checkbox" class="opacity-0 w-0 h-0 peer" id="hairEnhance">
+                                                <label for="hairEnhance" class="absolute cursor-pointer top-0 left-0 right-0 bottom-0 bg-gray-700 rounded-full transition peer-checked:bg-primary peer-checked:before:translate-x-6 before:absolute before:h-5 before:w-5 before:left-0.5 before:bottom-0.5 before:bg-white before:rounded-full before:transition"></label>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Virtual Try-On Tab -->
+                <div id="try-on" class="tab-content hidden">
+                    <div class="flex justify-between items-center mb-6">
+                        <h2 class="text-2xl font-bold">Virtual Try-On</h2>
+                        <button class="bg-primary hover:bg-secondary px-4 py-2 rounded-lg">
+                            <i class="fas fa-tshirt mr-2"></i> Try On
+                        </button>
+                    </div>
+                    
+                    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                        <div class="bg-dark/80 p-6 rounded-xl border border-gray-800">
+                            <h3 class="text-xl font-bold mb-4">Person Image</h3>
+                            <div class="border-2 border-dashed border-gray-700 rounded-lg h-80 flex flex-col items-center justify-center p-8 text-center">
+                                <i class="fas fa-user text-4xl text-gray-500 mb-4"></i>
+                                <p class="text-gray-400 mb-4">Upload person image</p>
+                                <button class="bg-primary hover:bg-secondary px-4 py-2 rounded-lg text-sm">
+                                    <i class="fas fa-folder-open mr-2"></i> Browse
+                                </button>
+                            </div>
+                        </div>
+                        
+                        <div class="bg-dark/80 p-6 rounded-xl border border-gray-800">
+                            <h3 class="text-xl font-bold mb-4">Clothing Item</h3>
+                            <div class="border-2 border-dashed border-gray-700 rounded-lg h-80 flex flex-col items-center justify-center p-8 text-center">
+                                <i class="fas fa-tshirt text-4xl text-gray-500 mb-4"></i>
+                                <p class="text-gray-400 mb-4">Upload clothing item</p>
+                                <button class="bg-primary hover:bg-secondary px-4 py-2 rounded-lg text-sm">
+                                    <i class="fas fa-folder-open mr-2"></i> Browse
+                                </button>
+                            </div>
+                        </div>
+                        
+                        <div class="bg-dark/80 p-6 rounded-xl border border-gray-800">
+                            <h3 class="text-xl font-bold mb-4">Try-On Result</h3>
+                            <div class="bg-dark/50 border border-gray-700 rounded-lg h-80 flex items-center justify-center">
+                                <p class="text-gray-400">Result will appear here</p>
+                            </div>
+                            
+                            <div class="mt-6">
+                                <h4 class="font-bold mb-3">Adjustments</h4>
+                                <div class="space-y-4">
+                                    <div>
+                                        <div class="flex justify-between mb-2">
+                                            <span class="text-gray-300">Fit</span>
+                                            <span>Tight</span>
+                                        </div>
+                                        <input type="range" min="0" max="100" value="50" class="w-full">
+                                    </div>
+                                    
+                                    <div>
+                                        <div class="flex justify-between mb-2">
+                                            <span class="text-gray-300">Position</span>
+                                            <span>Center</span>
+                                        </div>
+                                        <input type="range" min="0" max="100" value="50" class="w-full">
+                                    </div>
+                                    
+                                    <div class="pt-2">
+                                        <button class="w-full bg-primary hover:bg-secondary py-2 rounded-lg">
+                                            <i class="fas fa-download mr-2"></i> Download Result
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Image Editing Tab -->
+                <div id="editing" class="tab-content hidden">
+                    <div class="flex justify-between items-center mb-6">
+                        <h2 class="text-2xl font-bold">Image Editing</h2>
+                        <div class="flex space-x-2">
+                            <button class="bg-primary hover:bg-secondary px-4 py-2 rounded-lg">
+                                <i class="fas fa-save mr-2"></i> Save
+                            </button>
+                            <button class="bg-dark/50 border border-gray-700 hover:bg-dark px-4 py-2 rounded-lg">
+                                <i class="fas fa-redo mr-2"></i> Reset
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <div class="grid grid-cols-1 lg:grid-cols-4 gap-6">
+                        <div class="lg:col-span-3 bg-dark/80 p-6 rounded-xl border border-gray-800">
+                            <h3 class="text-xl font-bold mb-4">Editing Canvas</h3>
+                            <div class="bg-dark/50 border border-gray-700 rounded-lg h-96 flex items-center justify-center">
+                                <p class="text-gray-400">Image editor will appear here</p>
+                            </div>
+                        </div>
+                        
+                        <div class="bg-dark/80 p-6 rounded-xl border border-gray-800">
+                            <h3 class="text-xl font-bold mb-4">Tools</h3>
+                            <div class="grid grid-cols-3 gap-3 mb-6">
+                                <button class="p-3 bg-dark/50 rounded-lg hover:bg-dark text-center">
+                                    <i class="fas fa-crop-alt text-xl mb-1"></i>
+                                    <p class="text-xs">Crop</p>
+                                </button>
+                                <button class="p-3 bg-dark/50 rounded-lg hover:bg-dark text-center">
+                                    <i class="fas fa-paint-brush text-xl mb-1"></i>
+                                    <p class="text-xs">Brush</p>
+                                </button>
+                                <button class="p-3 bg-dark/50 rounded-lg hover:bg-dark text-center">
+                                    <i class="fas fa-eraser text-xl mb-1"></i>
+                                    <p class="text-xs">Eraser</p>
+                                </button>
+                                <button class="p-3 bg-dark/50 rounded-lg hover:bg-dark text-center">
+                                    <i class="fas fa-fill-drip text-xl mb-1"></i>
+                                    <p class="text-xs">Fill</p>
+                                </button>
+                                <button class="p-3 bg-dark/50 rounded-lg hover:bg-dark text-center">
+                                    <i class="fas fa-text-height text-xl mb-1"></i>
+                                    <p class="text-xs">Text</p>
+                                </button>
+                                <button class="p-3 bg-dark/50 rounded-lg hover:bg-dark text-center">
+                                    <i class="fas fa-magic text-xl mb-1"></i>
+                                    <p class="text-xs">Filter</p>
+                                </button>
+                                <button class="p-3 bg-dark/50 rounded-lg hover:bg-dark text-center">
+                                    <i class="fas fa-upload text-xl mb-1"></i>
+                                    <p class="text-xs">Upload</p>
+                                </button>
+                                <button class="p-3 bg-dark/50 rounded-lg hover:bg-dark text-center">
+                                    <i class="fas fa-expand-arrows-alt text-xl mb-1"></i>
+                                    <p class="text-xs">Resize</p>
+                                </button>
+                                <button class="p-3 bg-dark/50 rounded-lg hover:bg-dark text-center">
+                                    <i class="fas fa-undo text-xl mb-1"></i>
+                                    <p class="text-xs">Undo</p>
+                                </button>
+                            </div>
+                            
+                            <div>
+                                <h4 class="font-bold mb-3">Adjustments</h4>
+                                <div class="space-y-4">
+                                    <div>
+                                        <div class="flex justify-between mb-1">
+                                            <span class="text-gray-300 text-sm">Brightness</span>
+                                            <span class="text-gray-400 text-sm">0</span>
+                                        </div>
+                                        <input type="range" min="-100" max="100" value="0" class="w-full">
+                                    </div>
+                                    
+                                    <div>
+                                        <div class="flex justify-between mb-1">
+                                            <span class="text-gray-300 text-sm">Contrast</span>
+                                            <span class="text-gray-400 text-sm">0</span>
+                                        </div>
+                                        <input type="range" min="-100" max="100" value="0" class="w-full">
+                                    </div>
+                                    
+                                    <div>
+                                        <div class="flex justify-between mb-1">
+                                            <span class="text-gray-300 text-sm">Saturation</span>
+                                            <span class="text-gray-400 text-sm">0</span>
+                                        </div>
+                                        <input type="range" min="-100" max="100" value="0" class="w-full">
+                                    </div>
+                                    
+                                    <div>
+                                        <div class="flex justify-between mb-1">
+                                            <span class="text-gray-300 text-sm">Sharpness</span>
+                                            <span class="text-gray-400 text-sm">0</span>
+                                        </div>
+                                        <input type="range" min="-100" max="100" value="0" class="w-full">
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- AI Chat Editing Tab -->
+                <div id="custom-editing" class="tab-content hidden">
+                    <div class="flex justify-between items-center mb-6">
+                        <h2 class="text-2xl font-bold">AI Chat Editing</h2>
+                        <div class="flex space-x-2">
+                            <button id="openPromptGeneratorChat" class="bg-primary hover:bg-secondary px-4 py-2 rounded-lg">
+                                <i class="fas fa-magic mr-2"></i> Prompt Generator
+                            </button>
+                            <button class="bg-success hover:bg-success/80 px-4 py-2 rounded-lg">
+                                <i class="fas fa-download mr-2"></i> Download
+                            </button>
+                            <button class="bg-info hover:bg-info/80 px-4 py-2 rounded-lg">
+                                <i class="fas fa-images mr-2"></i> Move to Gallery
+                            </button>
+                            <button class="bg-primary hover:bg-secondary px-4 py-2 rounded-lg">
+                                <i class="fas fa-paper-plane mr-2"></i> Send
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                        <div class="lg:col-span-2 bg-dark/80 p-6 rounded-xl border border-gray-800">
+                            <h3 class="text-xl font-bold mb-4">Image</h3>
+                            <div class="border-2 border-dashed border-gray-700 rounded-lg h-96 flex flex-col items-center justify-center p-8 text-center">
+                                <i class="fas fa-image text-4xl text-gray-500 mb-4"></i>
+                                <p class="text-gray-400 mb-4">Upload image to edit</p>
+                                <button class="bg-primary hover:bg-secondary px-4 py-2 rounded-lg">
+                                    <i class="fas fa-folder-open mr-2"></i> Browse Files
+                                </button>
+                            </div>
+                            
+                            <div class="mt-6">
+                                <h3 class="text-xl font-bold mb-4">Result</h3>
+                                <div class="bg-dark/50 border border-gray-700 rounded-lg h-96 flex items-center justify-center">
+                                    <p class="text-gray-400">Edited image will appear here</p>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="bg-dark/80 p-6 rounded-xl border border-gray-800">
+                            <h3 class="text-xl font-bold mb-4">AI Assistant</h3>
+                            <div class="bg-dark/50 rounded-lg p-4 h-64 overflow-y-auto mb-4">
+                                <div class="mb-3">
+                                    <div class="font-bold text-primary">AI Assistant</div>
+                                    <div class="bg-dark/70 rounded-lg p-3 mt-1">
+                                        Hello! I'm your AI editing assistant. Upload an image and describe what you'd like to change.
+                                    </div>
+                                </div>
+                                <div class="mb-3">
+                                    <div class="font-bold text-secondary">You</div>
+                                    <div class="bg-primary/20 rounded-lg p-3 mt-1">
+                                        Can you make the background blue and add a sunset?
+                                    </div>
+                                </div>
+                                <div>
+                                    <div class="font-bold text-primary">AI Assistant</div>
+                                    <div class="bg-dark/70 rounded-lg p-3 mt-1">
+                                        I'll modify the background to blue and add a sunset effect. Processing now...
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="flex">
+                                <input type="text" class="flex-1 bg-dark/50 border border-gray-700 rounded-l-lg px-4 py-2 focus:outline-none focus:border-primary" placeholder="Type your request...">
+                                <button class="bg-primary hover:bg-secondary px-4 rounded-r-lg">
+                                    <i class="fas fa-paper-plane"></i>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- API Providers Tab -->
+                <div id="apis" class="tab-content hidden">
+                    <div class="flex justify-between items-center mb-6">
+                        <h2 class="text-2xl font-bold">API Providers</h2>
+                        <button id="addApiBtn" class="bg-primary hover:bg-secondary px-4 py-2 rounded-lg flex items-center">
+                            <i class="fas fa-plus mr-2"></i> Add New API
+                        </button>
+                    </div>
+
+                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
+                        <!-- API Provider Card 1 -->
+                        <div class="api-card bg-dark/80 p-6 rounded-xl border border-gray-800">
+                            <div class="flex justify-between items-start mb-4">
+                                <div>
+                                    <h3 class="text-xl font-bold">OpenAI GPT-4</h3>
+                                    <p class="text-gray-400">Text Generation</p>
+                                </div>
+                                <div class="flex items-center">
+                                    <span class="status-indicator status-online"></span>
+                                    <span class="text-xs">Online</span>
+                                </div>
+                            </div>
+                            <div class="mb-4">
+                                <p class="text-sm text-gray-300 mb-1">API Key: sk-****abcd</p>
+                                <p class="text-sm text-gray-300">Tokens Used: 420K</p>
+                            </div>
+                            <div class="flex justify-between items-center">
+                                <span class="bg-primary/20 px-3 py-1 rounded-full text-sm">Free Tier Available</span>
+                                <div class="flex space-x-2">
+                                    <button class="preview-btn text-primary hover:text-secondary" title="Preview">
+                                        <i class="fas fa-eye"></i>
+                                    </button>
+                                    <button class="edit-btn text-info hover:text-blue-400" title="Edit">
+                                        <i class="fas fa-edit"></i>
+                                    </button>
+                                    <button class="delete-btn text-danger hover:text-red-400" title="Delete">
+                                        <i class="fas fa-trash"></i>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- API Provider Card 2 -->
+                        <div class="api-card bg-dark/80 p-6 rounded-xl border border-gray-800">
+                            <div class="flex justify-between items-start mb-4">
+                                <div>
+                                    <h3 class="text-xl font-bold">Stable Diffusion XL</h3>
+                                    <p class="text-gray-400">Image Generation</p>
+                                </div>
+                                <div class="flex items-center">
+                                    <span class="status-indicator status-online"></span>
+                                    <span class="text-xs">Online</span>
+                                </div>
+                            </div>
+                            <div class="mb-4">
+                                <p class="text-sm text-gray-300 mb-1">Endpoint: /v1/images/generations</p>
+                                <p class="text-sm text-gray-300">Requests: 1.2K</p>
+                            </div>
+                            <div class="flex justify-between items-center">
+                                <span class="bg-success/20 px-3 py-1 rounded-full text-sm">Open Source</span>
+                                <div class="flex space-x-2">
+                                    <button class="preview-btn text-primary hover:text-secondary" title="Preview">
+                                        <i class="fas fa-eye"></i>
+                                    </button>
+                                    <button class="edit-btn text-info hover:text-blue-400" title="Edit">
+                                        <i class="fas fa-edit"></i>
+                                    </button>
+                                    <button class="delete-btn text-danger hover:text-red-400" title="Delete">
+                                        <i class="fas fa-trash"></i>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- API Provider Card 3 -->
+                        <div class="api-card bg-dark/80 p-6 rounded-xl border border-gray-800">
+                            <div class="flex justify-between items-start mb-4">
+                                <div>
+                                    <h3 class="text-xl font-bold">Anthropic Claude 3</h3>
+                                    <p class="text-gray-400">Multimodal AI</p>
+                                </div>
+                                <div class="flex items-center">
+                                    <span class="status-indicator status-warning"></span>
+                                    <span class="text-xs">Rate Limited</span>
+                                </div>
+                            </div>
+                            <div class="mb-4">
+                                <p class="text-sm text-gray-300 mb-1">API Key: sk-****xyz9</p>
+                                <p class="text-sm text-gray-300">Tokens Used: 280K</p>
+                            </div>
+                            <div class="flex justify-between items-center">
+                                <span class="bg-warning/20 px-3 py-1 rounded-full text-sm">Paid Only</span>
+                                <div class="flex space-x-2">
+                                    <button class="preview-btn text-primary hover:text-secondary" title="Preview">
+                                        <i class="fas fa-eye"></i>
+                                    </button>
+                                    <button class="edit-btn text-info hover:text-blue-400" title="Edit">
+                                        <i class="fas fa-edit"></i>
+                                    </button>
+                                    <button class="delete-btn text-danger hover:text-red-400" title="Delete">
+                                        <i class="fas fa-trash"></i>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Preview Modal -->
+                    <div id="previewModal" class="fixed inset-0 bg-black/70 flex items-center justify-center z-50 hidden">
+                        <div class="bg-dark w-full max-w-2xl rounded-xl border border-gray-800 p-6">
+                            <div class="flex justify-between items-center mb-6">
+                                <h3 class="text-xl font-bold">API Provider Details</h3>
+                                <button id="closePreview" class="text-gray-400 hover:text-white">
+                                    <i class="fas fa-times"></i>
+                                </button>
+                            </div>
+                            <div class="space-y-4">
+                                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <div>
+                                        <label class="text-gray-400 text-sm">Provider Name</label>
+                                        <p class="font-medium">OpenAI GPT-4</p>
+                                    </div>
+                                    <div>
+                                        <label class="text-gray-400 text-sm">Category</label>
+                                        <p class="font-medium">Text Generation</p>
+                                    </div>
+                                    <div>
+                                        <label class="text-gray-400 text-sm">API Endpoint</label>
+                                        <p class="font-medium break-all">https://api.openai.com/v1/chat/completions</p>
+                                    </div>
+                                    <div>
+                                        <label class="text-gray-400 text-sm">Authentication</label>
+                                        <p class="font-medium">Bearer Token</p>
+                                    </div>
+                                </div>
+                                <div>
+                                    <label class="text-gray-400 text-sm">API Key</label>
+                                    <div class="flex items-center bg-dark/50 p-3 rounded-lg mt-1">
+                                        <input type="password" value="sk-****abcd1234efgh5678ijkl" class="bg-transparent flex-1" readonly>
+                                        <button class="ml-2 text-primary hover:text-secondary">
+                                            <i class="fas fa-copy"></i>
+                                        </button>
+                                    </div>
+                                </div>
+                                <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                    <div class="bg-dark/50 p-4 rounded-lg">
+                                        <p class="text-gray-400 text-sm">Tokens Used</p>
+                                        <p class="text-xl font-bold">420,567</p>
+                                    </div>
+                                    <div class="bg-dark/50 p-4 rounded-lg">
+                                        <p class="text-gray-400 text-sm">Requests Today</p>
+                                        <p class="text-xl font-bold">1,243</p>
+                                    </div>
+                                    <div class="bg-dark/50 p-4 rounded-lg">
+                                        <p class="text-gray-400 text-sm">Status</p>
+                                        <p class="text-xl font-bold text-success">Operational</p>
+                                    </div>
+                                </div>
+                                <div>
+                                    <label class="text-gray-400 text-sm">Usage Limits</label>
+                                    <div class="mt-2">
+                                        <div class="flex justify-between text-sm mb-1">
+                                            <span>Monthly Token Limit</span>
+                                            <span>1,000,000 / 2,000,000</span>
+                                        </div>
+                                        <div class="w-full bg-gray-700 rounded-full h-2">
+                                            <div class="bg-primary h-2 rounded-full" style="width: 50%"></div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="flex justify-end space-x-3 mt-6">
+                                <button class="px-4 py-2 border border-gray-700 rounded-lg hover:bg-dark">
+                                    Test Connection
+                                </button>
+                                <button class="px-4 py-2 bg-primary hover:bg-secondary rounded-lg">
+                                    Edit Configuration
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Workflows Tab -->
+                <div id="workflows" class="tab-content hidden">
+                    <div class="flex justify-between items-center mb-6">
+                        <h2 class="text-2xl font-bold">Workflow Management</h2>
+                        <button id="addWorkflowBtn" class="bg-primary hover:bg-secondary px-4 py-2 rounded-lg flex items-center">
+                            <i class="fas fa-plus mr-2"></i> Create Workflow
+                        </button>
+                    </div>
+
+                    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
+                        <div class="lg:col-span-2 bg-dark/80 p-6 rounded-xl border border-gray-800">
+                            <h3 class="text-xl font-bold mb-4">Workflow Designer</h3>
+                            <div class="relative h-96 bg-dark/50 rounded-lg border border-gray-700 overflow-hidden">
+                                <svg class="absolute inset-0 w-full h-full">
+                                    <defs>
+                                        <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+                                            <polygon points="0 0, 10 3.5, 0 7" fill="#64748b" />
+                                        </marker>
+                                    </defs>
+                                    <!-- Connection lines -->
+                                    <line x1="100" y1="80" x2="300" y2="80" class="connection-line" />
+                                    <line x1="300" y1="80" x2="500" y2="80" class="connection-line" />
+                                    <line x1="500" y1="80" x2="500" y2="200" class="connection-line" />
+                                    
+                                    <!-- Nodes -->
+                                    <rect x="50" y="50" width="100" height="60" rx="10" fill="#4f46e5" class="workflow-node" />
+                                    <text x="100" y="85" text-anchor="middle" fill="white" font-size="12">Input</text>
+                                    
+                                    <rect x="250" y="50" width="100" height="60" rx="10" fill="#7c3aed" class="workflow-node" />
+                                    <text x="300" y="85" text-anchor="middle" fill="white" font-size="12">GPT-4</text>
+                                    
+                                    <rect x="450" y="50" width="100" height="60" rx="10" fill="#0d9488" class="workflow-node" />
+                                    <text x="500" y="85" text-anchor="middle" fill="white" font-size="12">SDXL</text>
+                                    
+                                    <rect x="450" y="200" width="100" height="60" rx="10" fill="#ea580c" class="workflow-node" />
+                                    <text x="500" y="235" text-anchor="middle" fill="white" font-size="12">Output</text>
+                                </svg>
+                            </div>
+                        </div>
+                        
+                        <div class="bg-dark/80 p-6 rounded-xl border border-gray-800">
+                            <h3 class="text-xl font-bold mb-4">Available Components</h3>
+                            <div class="space-y-3">
+                                <div class="p-3 bg-dark/50 rounded-lg cursor-move hover:bg-dark/70">
+                                    <div class="flex items-center">
+                                        <div class="w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center mr-3">
+                                            <i class="fas fa-keyboard text-primary"></i>
+                                        </div>
+                                        <span>Text Input</span>
+                                    </div>
+                                </div>
+                                <div class="p-3 bg-dark/50 rounded-lg cursor-move hover:bg-dark/70">
+                                    <div class="flex items-center">
+                                        <div class="w-8 h-8 rounded-full bg-secondary/20 flex items-center justify-center mr-3">
+                                            <i class="fas fa-brain text-secondary"></i>
+                                        </div>
+                                        <span>GPT-4 Text Generation</span>
+                                    </div>
+                                </div>
+                                <div class="p-3 bg-dark/50 rounded-lg cursor-move hover:bg-dark/70">
+                                    <div class="flex items-center">
+                                        <div class="w-8 h-8 rounded-full bg-success/20 flex items-center justify-center mr-3">
+                                            <i class="fas fa-image text-success"></i>
+                                        </div>
+                                        <span>Stable Diffusion XL</span>
+                                    </div>
+                                </div>
+                                <div class="p-3 bg-dark/50 rounded-lg cursor-move hover:bg-dark/70">
+                                    <div class="flex items-center">
+                                        <div class="w-8 h-8 rounded-full bg-warning/20 flex items-center justify-center mr-3">
+                                            <i class="fas fa-sliders-h text-warning"></i>
+                                        </div>
+                                        <span>Parameter Adjuster</span>
+                                    </div>
+                                </div>
+                                <div class="p-3 bg-dark/50 rounded-lg cursor-move hover:bg-dark/70">
+                                    <div class="flex items-center">
+                                        <div class="w-8 h-8 rounded-full bg-info/20 flex items-center justify-center mr-3">
+                                            <i class="fas fa-save text-info"></i>
+                                        </div>
+                                        <span>Save Result</span>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="mt-6">
+                                <h4 class="font-bold mb-3">Current Workflow</h4>
+                                <div class="space-y-2">
+                                    <div class="flex items-center p-2 bg-dark/50 rounded">
+                                        <span class="mr-2 text-gray-400">1.</span>
+                                        <span>Text Input</span>
+                                        <button class="ml-auto text-danger">
+                                            <i class="fas fa-times"></i>
+                                        </button>
+                                    </div>
+                                    <div class="flex items-center p-2 bg-dark/50 rounded">
+                                        <span class="mr-2 text-gray-400">2.</span>
+                                        <span>GPT-4 Text Generation</span>
+                                        <button class="ml-auto text-danger">
+                                            <i class="fas fa-times"></i>
+                                        </button>
+                                    </div>
+                                    <div class="flex items-center p-2 bg-dark/50 rounded">
+                                        <span class="mr-2 text-gray-400">3.</span>
+                                        <span>Stable Diffusion XL</span>
+                                        <button class="ml-auto text-danger">
+                                            <i class="fas fa-times"></i>
+                                        </button>
+                                    </div>
+                                    <div class="flex items-center p-2 bg-dark/50 rounded">
+                                        <span class="mr-2 text-gray-400">4.</span>
+                                        <span>Save Result</span>
+                                        <button class="ml-auto text-danger">
+                                            <i class="fas fa-times"></i>
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="bg-dark/80 p-6 rounded-xl border border-gray-800">
+                        <div class="flex justify-between items-center mb-6">
+                            <h3 class="text-xl font-bold">Saved Workflows</h3>
+                            <div class="relative">
+                                <input type="text" placeholder="Search workflows..." class="bg-dark/50 border border-gray-700 rounded-lg pl-10 pr-4 py-2 focus:outline-none focus:border-primary">
+                                <i class="fas fa-search absolute left-3 top-3 text-gray-500"></i>
+                            </div>
+                        </div>
+                        
+                        <div class="overflow-x-auto">
+                            <table class="min-w-full">
+                                <thead>
+                                    <tr class="border-b border-gray-700">
+                                        <th class="py-3 px-4 text-left">Name</th>
+                                        <th class="py-3 px-4 text-left">Components</th>
+                                        <th class="py-3 px-4 text-left">Last Run</th>
+                                        <th class="py-3 px-4 text-left">Status</th>
+                                        <th class="py-3 px-4 text-left">Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr class="border-b border-gray-800 hover:bg-dark/50">
+                                        <td class="py-3 px-4">Image Generation Pipeline</td>
+                                        <td class="py-3 px-4">Text Input → GPT-4 → SDXL</td>
+                                        <td class="py-3 px-4">2 hours ago</td>
+                                        <td class="py-3 px-4">
+                                            <span class="bg-success/20 px-2 py-1 rounded-full text-xs">Active</span>
+                                        </td>
+                                        <td class="py-3 px-4">
+                                            <div class="flex space-x-2">
+                                                <button class="text-primary hover:text-secondary">
+                                                    <i class="fas fa-play"></i>
+                                                </button>
+                                                <button class="text-info hover:text-blue-400">
+                                                    <i class="fas fa-edit"></i>
+                                                </button>
+                                                <button class="text-danger hover:text-red-400">
+                                                    <i class="fas fa-trash"></i>
+                                                </button>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                    <tr class="border-b border-gray-800 hover:bg-dark/50">
+                                        <td class="py-3 px-4">Text Summarization</td>
+                                        <td class="py-3 px-4">Text Input → GPT-4 → Save</td>
+                                        <td class="py-3 px-4">1 day ago</td>
+                                        <td class="py-3 px-4">
+                                            <span class="bg-warning/20 px-2 py-1 rounded-full text-xs">Paused</span>
+                                        </td>
+                                        <td class="py-3 px-4">
+                                            <div class="flex space-x-2">
+                                                <button class="text-primary hover:text-secondary">
+                                                    <i class="fas fa-play"></i>
+                                                </button>
+                                                <button class="text-info hover:text-blue-400">
+                                                    <i class="fas fa-edit"></i>
+                                                </button>
+                                                <button class="text-danger hover:text-red-400">
+                                                    <i class="fas fa-trash"></i>
+                                                </button>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                    <tr class="hover:bg-dark/50">
+                                        <td class="py-3 px-4">Creative Writing Assistant</td>
+                                        <td class="py-3 px-4">Text Input → GPT-4 → Parameter Adjuster → GPT-4</td>
+                                        <td class="py-3 px-4">3 days ago</td>
+                                        <td class="py-3 px-4">
+                                            <span class="bg-success/20 px-2 py-1 rounded-full text-xs">Active</span>
+                                        </td>
+                                        <td class="py-3 px-4">
+                                            <div class="flex space-x-2">
+                                                <button class="text-primary hover:text-secondary">
+                                                    <i class="fas fa-play"></i>
+                                                </button>
+                                                <button class="text-info hover:text-blue-400">
+                                                    <i class="fas fa-edit"></i>
+                                                </button>
+                                                <button class="text-danger hover:text-red-400">
+                                                    <i class="fas fa-trash"></i>
+                                                </button>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Usage Analytics Tab -->
+                <div id="usage" class="tab-content hidden">
+                    <h2 class="text-2xl font-bold mb-6">Usage Analytics</h2>
+                    
+                    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+                        <div class="bg-dark/80 p-6 rounded-xl border border-gray-800">
+                            <h3 class="text-xl font-bold mb-4">API Usage Distribution</h3>
+                            <canvas id="usageDistributionChart" height="300"></canvas>
+                        </div>
+                        <div class="bg-dark/80 p-6 rounded-xl border border-gray-800">
+                            <h3 class="text-xl font-bold mb-4">Daily Requests Trend</h3>
+                            <canvas id="requestsTrendChart" height="300"></canvas>
+                        </div>
+                    </div>
+                    
+                    <div class="bg-dark/80 p-6 rounded-xl border border-gray-800 mb-8">
+                        <h3 class="text-xl font-bold mb-4">Token Consumption Report</h3>
+                        <div class="overflow-x-auto">
+                            <table class="min-w-full">
+                                <thead>
+                                    <tr class="border-b border-gray-700">
+                                        <th class="py-3 px-4 text-left">API Provider</th>
+                                        <th class="py-3 px-4 text-left">Tokens Used</th>
+                                        <th class="py-3 px-4 text-left">Cost Estimate</th>
+                                        <th class="py-3 px-4 text-left">Usage %</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr class="border-b border-gray-800 hover:bg-dark/50">
+                                        <td class="py-3 px-4">OpenAI GPT-4</td>
+                                        <td class="py-3 px-4">420,567</td>
+                                        <td class="py-3 px-4">$126.17</td>
+                                        <td class="py-3 px-4">
+                                            <div class="flex items-center">
+                                                <div class="w-full bg-gray-700 rounded-full h-2 mr-2">
+                                                    <div class="bg-primary h-2 rounded-full" style="width: 65%"></div>
+                                                </div>
+                                                <span>65%</span>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                    <tr class="border-b border-gray-800 hover:bg-dark/50">
+                                        <td class="py-3 px-4">Anthropic Claude 3</td>
+                                        <td class="py-3 px-4">280,123</td>
+                                        <td class="py-3 px-4">$98.04</td>
+                                        <td class="py-3 px-4">
+                                            <div class="flex items-center">
+                                                <div class="w-full bg-gray-700 rounded-full h-2 mr-2">
+                                                    <div class="bg-secondary h-2 rounded-full" style="width: 43%"></div>
+                                                </div>
+                                                <span>43%</span>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                    <tr class="border-b border-gray-800 hover:bg-dark/50">
+                                        <td class="py-3 px-4">Stable Diffusion XL</td>
+                                        <td class="py-3 px-4">156,789</td>
+                                        <td class="py-3 px-4">$0.00</td>
+                                        <td class="py-3 px-4">
+                                            <div class="flex items-center">
+                                                <div class="w-full bg-gray-700 rounded-full h-2 mr-2">
+                                                    <div class="bg-success h-2 rounded-full" style="width: 24%"></div>
+                                                </div>
+                                                <span>24%</span>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                    <tr class="hover:bg-dark/50">
+                                        <td class="py-3 px-4">Hugging Face Models</td>
+                                        <td class="py-3 px-4">89,432</td>
+                                        <td class="py-3 px-4">$0.00</td>
+                                        <td class="py-3 px-4">
+                                            <div class="flex items-center">
+                                                <div class="w-full bg-gray-700 rounded-full h-2 mr-2">
+                                                    <div class="bg-info h-2 rounded-full" style="width: 14%"></div>
+                                                </div>
+                                                <span>14%</span>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                    
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div class="bg-dark/80 p-6 rounded-xl border border-gray-800">
+                            <h3 class="text-xl font-bold mb-4">Free vs Paid Usage</h3>
+                            <canvas id="freePaidChart" height="250"></canvas>
+                        </div>
+                        <div class="bg-dark/80 p-6 rounded-xl border border-gray-800">
+                            <h3 class="text-xl font-bold mb-4">User Access Levels</h3>
+                            <div class="space-y-4">
+                                <div>
+                                    <div class="flex justify-between mb-1">
+                                        <span class="text-gray-300">Admin Users</span>
+                                        <span>3</span>
+                                    </div>
+                                    <div class="w-full bg-gray-700 rounded-full h-2">
+                                        <div class="bg-primary h-2 rounded-full" style="width: 15%"></div>
+                                    </div>
+                                </div>
+                                <div>
+                                    <div class="flex justify-between mb-1">
+                                        <span class="text-gray-300">Standard Users</span>
+                                        <span>12</span>
+                                    </div>
+                                    <div class="w-full bg-gray-700 rounded-full h-2">
+                                        <div class="bg-secondary h-2 rounded-full" style="width: 60%"></div>
+                                    </div>
+                                </div>
+                                <div>
+                                    <div class="flex justify-between mb-1">
+                                        <span class="text-gray-300">Free Tier Users</span>
+                                        <span>45</span>
+                                    </div>
+                                    <div class="w-full bg-gray-700 rounded-full h-2">
+                                        <div class="bg-success h-2 rounded-full" style="width: 100%"></div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Error Handling Tab -->
+                <div id="errors" class="tab-content hidden">
+                    <div class="flex justify-between items-center mb-6">
+                        <h2 class="text-2xl font-bold">Error Handling & Monitoring</h2>
+                        <button class="bg-primary hover:bg-secondary px-4 py-2 rounded-lg flex items-center">
+                            <i class="fas fa-sync mr-2"></i> Refresh Logs
+                        </button>
+                    </div>
+                    
+                    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
+                        <div class="bg-dark/80 p-6 rounded-xl border border-gray-800">
+                            <h3 class="text-xl font-bold mb-4">Error Statistics</h3>
+                            <div class="space-y-4">
+                                <div class="flex justify-between items-center p-3 bg-danger/10 rounded-lg">
+                                    <div class="flex items-center">
+                                        <div class="w-10 h-10 rounded-full bg-danger/20 flex items-center justify-center mr-3">
+                                            <i class="fas fa-exclamation-circle text-danger"></i>
+                                        </div>
+                                        <div>
+                                            <p class="font-medium">Critical Errors</p>
+                                            <p class="text-sm text-gray-400">Requires immediate attention</p>
+                                        </div>
+                                    </div>
+                                    <span class="text-2xl font-bold">2</span>
+                                </div>
+                                <div class="flex justify-between items-center p-3 bg-warning/10 rounded-lg">
+                                    <div class="flex items-center">
+                                        <div class="w-10 h-10 rounded-full bg-warning/20 flex items-center justify-center mr-3">
+                                            <i class="fas fa-exclamation-triangle text-warning"></i>
+                                        </div>
+                                        <div>
+                                            <p class="font-medium">Warnings</p>
+                                            <p class="text-sm text-gray-400">Potential issues</p>
+                                        </div>
+                                    </div>
+                                    <span class="text-2xl font-bold">15</span>
+                                </div>
+                                <div class="flex justify-between items-center p-3 bg-info/10 rounded-lg">
+                                    <div class="flex items-center">
+                                        <div class="w-10 h-10 rounded-full bg-info/20 flex items-center justify-center mr-3">
+                                            <i class="fas fa-info-circle text-info"></i>
+                                        </div>
+                                        <div>
+                                            <p class="font-medium">Resolved Issues</p>
+                                            <p class="text-sm text-gray-400">Handled automatically</p>
+                                        </div>
+                                    </div>
+                                    <span class="text-2xl font-bold">87</span>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="lg:col-span-2 bg-dark/80 p-6 rounded-xl border border-gray-800">
+                            <h3 class="text-xl font-bold mb-4">Recent Error Logs</h3>
+                            <div class="overflow-x-auto">
+                                <table class="min-w-full">
+                                    <thead>
+                                        <tr class="border-b border-gray-700">
+                                            <th class="py-3 px-4 text-left">Time</th>
+                                            <th class="py-3 px-4 text-left">Error Type</th>
+                                            <th class="py-3 px-4 text-left">Component</th>
+                                            <th class="py-3 px-4 text-left">Message</th>
+                                            <th class="py-3 px-4 text-left">Status</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <tr class="border-b border-gray-800 hover:bg-dark/50">
+                                            <td class="py-3 px-4 text-sm">14:23:15</td>
+                                            <td class="py-3 px-4">
+                                                <span class="bg-danger/20 px-2 py-1 rounded-full text-xs">Timeout</span>
+                                            </td>
+                                            <td class="py-3 px-4">OpenAI GPT-4</td>
+                                            <td class="py-3 px-4">Request timeout after 30 seconds</td>
+                                            <td class="py-3 px-4">
+                                                <span class="text-warning">Pending</span>
+                                            </td>
+                                        </tr>
+                                        <tr class="border-b border-gray-800 hover:bg-dark/50">
+                                            <td class="py-3 px-4 text-sm">13:45:22</td>
+                                            <td class="py-3 px-4">
+                                                <span class="bg-warning/20 px-2 py-1 rounded-full text-xs">Rate Limit</span>
+                                            </td>
+                                            <td class="py-3 px-4">Anthropic Claude 3</td>
+                                            <td class="py-3 px-4">Exceeded requests per minute limit</td>
+                                            <td class="py-3 px-4">
+                                                <span class="text-success">Resolved</span>
+                                            </td>
+                                        </tr>
+                                        <tr class="border-b border-gray-800 hover:bg-dark/50">
+                                            <td class="py-3 px-4 text-sm">12:18:47</td>
+                                            <td class="py-3 px-4">
+                                                <span class="bg-danger/20 px-2 py-1 rounded-full text-xs">Auth Error</span>
+                                            </td>
+                                            <td class="py-3 px-4">Hugging Face API</td>
+                                            <td class="py-3 px-4">Invalid API key provided</td>
+                                            <td class="py-3 px-4">
+                                                <span class="text-success">Resolved</span>
+                                            </td>
+                                        </tr>
+                                        <tr class="hover:bg-dark/50">
+                                            <td class="py-3 px-4 text-sm">11:32:09</td>
+                                            <td class="py-3 px-4">
+                                                <span class="bg-info/20 px-2 py-1 rounded-full text-xs">Network</span>
+                                            </td>
+                                            <td class="py-3 px-4">Stable Diffusion XL</td>
+                                            <td class="py-3 px-4">Connection reset by peer</td>
+                                            <td class="py-3 px-4">
+                                                <span class="text-success">Auto-recovered</span>
+                                            </td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="bg-dark/80 p-6 rounded-xl border border-gray-800">
+                        <h3 class="text-xl font-bold mb-4">Error Resolution Workflow</h3>
+                        <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+                            <div class="text-center p-4 bg-dark/50 rounded-lg">
+                                <div class="w-12 h-12 rounded-full bg-primary/20 flex items-center justify-center mx-auto mb-3">
+                                    <i class="fas fa-bell text-primary"></i>
+                                </div>
+                                <h4 class="font-bold mb-2">Detection</h4>
+                                <p class="text-sm text-gray-400">System monitors API responses in real-time</p>
+                            </div>
+                            <div class="text-center p-4 bg-dark/50 rounded-lg">
+                                <div class="w-12 h-12 rounded-full bg-secondary/20 flex items-center justify-center mx-auto mb-3">
+                                    <i class="fas fa-cogs text-secondary"></i>
+                                </div>
+                                <h4 class="font-bold mb-2">Analysis</h4>
+                                <p class="text-sm text-gray-400">AI determines root cause and impact</p>
+                            </div>
+                            <div class="text-center p-4 bg-dark/50 rounded-lg">
+                                <div class="w-12 h-12 rounded-full bg-success/20 flex items-center justify-center mx-auto mb-3">
+                                    <i class="fas fa-wrench text-success"></i>
+                                </div>
+                                <h4 class="font-bold mb-2">Resolution</h4>
+                                <p class="text-sm text-gray-400">Automated fixes or fallback activation</p>
+                            </div>
+                            <div class="text-center p-4 bg-dark/50 rounded-lg">
+                                <div class="w-12 h-12 rounded-full bg-info/20 flex items-center justify-center mx-auto mb-3">
+                                    <i class="fas fa-chart-line text-info"></i>
+                                </div>
+                                <h4 class="font-bold mb-2">Reporting</h4>
+                                <p class="text-sm text-gray-400">Detailed logs and performance metrics</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- User Management Tab -->
+                <div id="users" class="tab-content hidden">
+                    <div class="flex justify-between items-center mb-6">
+                        <h2 class="text-2xl font-bold">User Management</h2>
+                        <button class="bg-primary hover:bg-secondary px-4 py-2 rounded-lg flex items-center">
+                            <i class="fas fa-plus mr-2"></i> Add New User
+                        </button>
+                    </div>
+                    
+                    <div class="bg-dark/80 p-6 rounded-xl border border-gray-800 mb-8">
+                        <div class="flex justify-between items-center mb-6">
+                            <h3 class="text-xl font-bold">User Accounts</h3>
+                            <div class="relative">
+                                <input type="text" placeholder="Search users..." class="bg-dark/50 border border-gray-700 rounded-lg pl-10 pr-4 py-2 focus:outline-none focus:border-primary">
+                                <i class="fas fa-search absolute left-3 top-3 text-gray-500"></i>
+                            </div>
+                        </div>
+                        
+                        <div class="overflow-x-auto">
+                            <table class="min-w-full">
+                                <thead>
+                                    <tr class="border-b border-gray-700">
+                                        <th class="py-3 px-4 text-left">User</th>
+                                        <th class="py-3 px-4 text-left">Email</th>
+                                        <th class="py-3 px-4 text-left">Role</th>
+                                        <th class="py-3 px-4 text-left">Status</th>
+                                        <th class="py-3 px-4 text-left">Last Active</th>
+                                        <th class="py-3 px-4 text-left">Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr class="border-b border-gray-800 hover:bg-dark/50">
+                                        <td class="py-3 px-4">
+                                            <div class="flex items-center">
+                                                <div class="w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center mr-2">
+                                                    <i class="fas fa-user text-primary"></i>
+                                                </div>
+                                                <span>Alex Johnson</span>
+                                            </div>
+                                        </td>
+                                        <td class="py-3 px-4">alex.johnson@example.com</td>
+                                        <td class="py-3 px-4">
+                                            <span class="bg-primary/20 px-2 py-1 rounded-full text-xs">Admin</span>
+                                        </td>
+                                        <td class="py-3 px-4">
+                                            <span class="bg-success/20 px-2 py-1 rounded-full text-xs">Active</span>
+                                        </td>
+                                        <td class="py-3 px-4">2 hours ago</td>
+                                        <td class="py-3 px-4">
+                                            <div class="flex space-x-2">
+                                                <button class="text-info hover:text-blue-400">
+                                                    <i class="fas fa-edit"></i>
+                                                </button>
+                                                <button class="text-danger hover:text-red-400">
+                                                    <i class="fas fa-ban"></i>
+                                                </button>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                    <tr class="border-b border-gray-800 hover:bg-dark/50">
+                                        <td class="py-3 px-4">
+                                            <div class="flex items-center">
+                                                <div class="w-8 h-8 rounded-full bg-secondary/20 flex items-center justify-center mr-2">
+                                                    <i class="fas fa-user text-secondary"></i>
+                                                </div>
+                                                <span>Sarah Williams</span>
+                                            </div>
+                                        </td>
+                                        <td class="py-3 px-4">sarah.w@example.com</td>
+                                        <td class="py-3 px-4">
+                                            <span class="bg-info/20 px-2 py-1 rounded-full text-xs">Standard</span>
+                                        </td>
+                                        <td class="py-3 px-4">
+                                            <span class="bg-success/20 px-2 py-1 rounded-full text-xs">Active</span>
+                                        </td>
+                                        <td class="py-3 px-4">1 day ago</td>
+                                        <td class="py-3 px-4">
+                                            <div class="flex space-x-2">
+                                                <button class="text-info hover:text-blue-400">
+                                                    <i class="fas fa-edit"></i>
+                                                </button>
+                                                <button class="text-danger hover:text-red-400">
+                                                    <i class="fas fa-ban"></i>
+                                                </button>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                    <tr class="border-b border-gray-800 hover:bg-dark/50">
+                                        <td class="py-3 px-4">
+                                            <div class="flex items-center">
+                                                <div class="w-8 h-8 rounded-full bg-warning/20 flex items-center justify-center mr-2">
+                                                    <i class="fas fa-user text-warning"></i>
+                                                </div>
+                                                <span>Michael Chen</span>
+                                            </div>
+                                        </td>
+                                        <td class="py-3 px-4">michael.c@example.com</td>
+                                        <td class="py-3 px-4">
+                                            <span class="bg-info/20 px-2 py-1 rounded-full text-xs">Standard</span>
+                                        </td>
+                                        <td class="py-3 px-4">
+                                            <span class="bg-warning/20 px-2 py-1 rounded-full text-xs">Blocked</span>
+                                        </td>
+                                        <td class="py-3 px-4">3 days ago</td>
+                                        <td class="py-3 px-4">
+                                            <div class="flex space-x-2">
+                                                <button class="text-success hover:text-green-400">
+                                                    <i class="fas fa-check"></i>
+                                                </button>
+                                                <button class="text-info hover:text-blue-400">
+                                                    <i class="fas fa-edit"></i>
+                                                </button>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                    <tr class="hover:bg-dark/50">
+                                        <td class="py-3 px-4">
+                                            <div class="flex items-center">
+                                                <div class="w-8 h-8 rounded-full bg-success/20 flex items-center justify-center mr-2">
+                                                    <i class="fas fa-user text-success"></i>
+                                                </div>
+                                                <span>Emma Rodriguez</span>
+                                            </div>
+                                        </td>
+                                        <td class="py-3 px-4">emma.r@example.com</td>
+                                        <td class="py-3 px-4">
+                                            <span class="bg-success/20 px-2 py-1 rounded-full text-xs">Free Tier</span>
+                                        </td>
+                                        <td class="py-3 px-4">
+                                            <span class="bg-success/20 px-2 py-1 rounded-full text-xs">Active</span>
+                                        </td>
+                                        <td class="py-3 px-4">5 days ago</td>
+                                        <td class="py-3 px-4">
+                                            <div class="flex space-x-2">
+                                                <button class="text-info hover:text-blue-400">
+                                                    <i class="fas fa-edit"></i>
+                                                </button>
+                                                <button class="text-danger hover:text-red-400">
+                                                    <i class="fas fa-ban"></i>
+                                                </button>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                    
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div class="bg-dark/80 p-6 rounded-xl border border-gray-800">
+                            <h3 class="text-xl font-bold mb-4">User Statistics</h3>
+                            <div class="space-y-4">
+                                <div class="flex justify-between items-center">
+                                    <span>Total Users</span>
+                                    <span class="text-2xl font-bold">1,248</span>
+                                </div>
+                                <div class="flex justify-between items-center">
+                                    <span>Active Users</span>
+                                    <span class="text-2xl font-bold">987</span>
+                                </div>
+                                <div class="flex justify-between items-center">
+                                    <span>Blocked Users</span>
+                                    <span class="text-2xl font-bold">23</span>
+                                </div>
+                                <div class="flex justify-between items-center">
+                                    <span>New Users (30 days)</span>
+                                    <span class="text-2xl font-bold">124</span>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="bg-dark/80 p-6 rounded-xl border border-gray-800">
+                            <h3 class="text-xl font-bold mb-4">User Roles</h3>
+                            <div class="space-y-4">
+                                <div>
+                                    <div class="flex justify-between mb-1">
+                                        <span class="text-gray-300">Admin</span>
+                                        <span>3</span>
+                                    </div>
+                                    <div class="w-full bg-gray-700 rounded-full h-2">
+                                        <div class="bg-primary h-2 rounded-full" style="width: 15%"></div>
+                                    </div>
+                                </div>
+                                <div>
+                                    <div class="flex justify-between mb-1">
+                                        <span class="text-gray-300">Standard</span>
+                                        <span>456</span>
+                                    </div>
+                                    <div class="w-full bg-gray-700 rounded-full h-2">
+                                        <div class="bg-secondary h-2 rounded-full" style="width: 60%"></div>
+                                    </div>
+                                </div>
+                                <div>
+                                    <div class="flex justify-between mb-1">
+                                        <span class="text-gray-300">Free Tier</span>
+                                        <span>789</span>
+                                    </div>
+                                    <div class="w-full bg-gray-700 rounded-full h-2">
+                                        <div class="bg-success h-2 rounded-full" style="width: 100%"></div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Settings Tab -->
+                <div id="settings" class="tab-content hidden">
+                    <h2 class="text-2xl font-bold mb-6">System Settings</h2>
+                    
+                    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                        <div class="lg:col-span-2 space-y-6">
+                            <div class="bg-dark/80 p-6 rounded-xl border border-gray-800">
+                                <h3 class="text-xl font-bold mb-4">General Settings</h3>
+                                <div class="space-y-4">
+                                    <div>
+                                        <label class="block text-gray-300 mb-2">Application Name</label>
+                                        <input type="text" value="AI API Manager" class="w-full bg-dark/50 border border-gray-700 rounded-lg px-4 py-2 focus:outline-none focus:border-primary">
+                                    </div>
+                                    <div>
+                                        <label class="block text-gray-300 mb-2">Default Timeout (seconds)</label>
+                                        <input type="number" value="30" class="w-full bg-dark/50 border border-gray-700 rounded-lg px-4 py-2 focus:outline-none focus:border-primary">
+                                    </div>
+                                    <div>
+                                        <label class="block text-gray-300 mb-2">Max Retry Attempts</label>
+                                        <input type="number" value="3" class="w-full bg-dark/50 border border-gray-700 rounded-lg px-4 py-2 focus:outline-none focus:border-primary">
+                                    </div>
+                                    <div class="flex items-center">
+                                        <input type="checkbox" id="autoRecovery" class="mr-2" checked>
+                                        <label for="autoRecovery" class="text-gray-300">Enable Auto Recovery for Failed Requests</label>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="bg-dark/80 p-6 rounded-xl border border-gray-800">
+                                <h3 class="text-xl font-bold mb-4">Admin Credentials</h3>
+                                <div class="space-y-4">
+                                    <div>
+                                        <label class="block text-gray-300 mb-2">Current Username</label>
+                                        <input type="text" value="admin" class="w-full bg-dark/50 border border-gray-700 rounded-lg px-4 py-2 focus:outline-none focus:border-primary">
+                                    </div>
+                                    <div>
+                                        <label class="block text-gray-300 mb-2">New Username</label>
+                                        <input type="text" placeholder="Leave blank to keep current" class="w-full bg-dark/50 border border-gray-700 rounded-lg px-4 py-2 focus:outline-none focus:border-primary">
+                                    </div>
+                                    <div>
+                                        <label class="block text-gray-300 mb-2">Current Password</label>
+                                        <input type="password" placeholder="Enter current password" class="w-full bg-dark/50 border border-gray-700 rounded-lg px-4 py-2 focus:outline-none focus:border-primary">
+                                    </div>
+                                    <div>
+                                        <label class="block text-gray-300 mb-2">New Password</label>
+                                        <input type="password" placeholder="Leave blank to keep current" class="w-full bg-dark/50 border border-gray-700 rounded-lg px-4 py-2 focus:outline-none focus:border-primary">
+                                    </div>
+                                    <div>
+                                        <label class="block text-gray-300 mb-2">Confirm New Password</label>
+                                        <input type="password" placeholder="Confirm new password" class="w-full bg-dark/50 border border-gray-700 rounded-lg px-4 py-2 focus:outline-none focus:border-primary">
+                                    </div>
+                                    <button class="bg-primary hover:bg-secondary px-4 py-2 rounded-lg">
+                                        Update Credentials
+                                    </button>
+                                </div>
+                            </div>
+                            
+                            <div class="bg-dark/80 p-6 rounded-xl border border-gray-800">
+                                <h3 class="text-xl font-bold mb-4">Notification Settings</h3>
+                                <div class="space-y-4">
+                                    <div class="flex items-center justify-between">
+                                        <div>
+                                            <p class="font-medium">Email Notifications</p>
+                                            <p class="text-sm text-gray-400">Send alerts to admin email</p>
+                                        </div>
+                                        <div class="relative inline-block w-12 h-6">
+                                            <input type="checkbox" class="opacity-0 w-0 h-0 peer" id="emailNotif" checked>
+                                            <label for="emailNotif" class="absolute cursor-pointer top-0 left-0 right-0 bottom-0 bg-gray-700 rounded-full transition peer-checked:bg-primary peer-checked:before:translate-x-6 before:absolute before:h-5 before:w-5 before:left-0.5 before:bottom-0.5 before:bg-white before:rounded-full before:transition"></label>
+                                        </div>
+                                    </div>
+                                    <div class="flex items-center justify-between">
+                                        <div>
+                                            <p class="font-medium">Slack Integration</p>
+                                            <p class="text-sm text-gray-400">Post alerts to Slack channel</p>
+                                        </div>
+                                        <div class="relative inline-block w-12 h-6">
+                                            <input type="checkbox" class="opacity-0 w-0 h-0 peer" id="slackNotif">
+                                            <label for="slackNotif" class="absolute cursor-pointer top-0 left-0 right-0 bottom-0 bg-gray-700 rounded-full transition peer-checked:bg-primary peer-checked:before:translate-x-6 before:absolute before:h-5 before:w-5 before:left-0.5 before:bottom-0.5 before:bg-white before:rounded-full before:transition"></label>
+                                        </div>
+                                    </div>
+                                    <div class="flex items-center justify-between">
+                                        <div>
+                                            <p class="font-medium">Push Notifications</p>
+                                            <p class="text-sm text-gray-400">Browser notifications for critical errors</p>
+                                        </div>
+                                        <div class="relative inline-block w-12 h-6">
+                                            <input type="checkbox" class="opacity-0 w-0 h-0 peer" id="pushNotif" checked>
+                                            <label for="pushNotif" class="absolute cursor-pointer top-0 left-0 right-0 bottom-0 bg-gray-700 rounded-full transition peer-checked:bg-primary peer-checked:before:translate-x-6 before:absolute before:h-5 before:w-5 before:left-0.5 before:bottom-0.5 before:bg-white before:rounded-full before:transition"></label>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div>
+                            <div class="bg-dark/80 p-6 rounded-xl border border-gray-800 mb-6">
+                                <h3 class="text-xl font-bold mb-4">System Health</h3>
+                                <div class="space-y-4">
+                                    <div class="p-3 bg-success/10 rounded-lg">
+                                        <div class="flex items-center">
+                                            <i class="fas fa-check-circle text-success mr-2"></i>
+                                            <span>Database Connection</span>
+                                        </div>
+                                    </div>
+                                    <div class="p-3 bg-success/10 rounded-lg">
+                                        <div class="flex items-center">
+                                            <i class="fas fa-check-circle text-success mr-2"></i>
+                                            <span>API Gateway</span>
+                                        </div>
+                                    </div>
+                                    <div class="p-3 bg-warning/10 rounded-lg">
+                                        <div class="flex items-center">
+                                            <i class="fas fa-exclamation-triangle text-warning mr-2"></i>
+                                            <span>Memory Usage (85%)</span>
+                                        </div>
+                                    </div>
+                                    <div class="p-3 bg-success/10 rounded-lg">
+                                        <div class="flex items-center">
+                                            <i class="fas fa-check-circle text-success mr-2"></i>
+                                            <span>Disk Space (45% used)</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="bg-dark/80 p-6 rounded-xl border border-gray-800">
+                                <h3 class="text-xl font-bold mb-4">Backup & Restore</h3>
+                                <div class="space-y-4">
+                                    <button class="w-full bg-primary hover:bg-secondary py-2 rounded-lg">
+                                        <i class="fas fa-download mr-2"></i> Backup Configuration
+                                    </button>
+                                    <button class="w-full bg-dark/50 border border-gray-700 hover:bg-dark py-2 rounded-lg">
+                                        <i class="fas fa-upload mr-2"></i> Restore Configuration
+                                    </button>
+                                    <button class="w-full bg-dark/50 border border-gray-700 hover:bg-dark py-2 rounded-lg">
+                                        <i class="fas fa-history mr-2"></i> View Backup History
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </main>
+        </div>
+    </div>
+
+    <script>
+        // Authentication functionality
+        document.addEventListener('DOMContentLoaded', function() {
+            const loginScreen = document.getElementById('loginScreen');
+            const appContainer = document.getElementById('appContainer');
+            const loginForm = document.getElementById('loginForm');
+            const logoutBtn = document.getElementById('logoutBtn');
+            
+            // Check if user is already logged in
+            if (localStorage.getItem('isLoggedIn') === 'true') {
+                loginScreen.style.display = 'none';
+                appContainer.style.display = 'block';
+            }
+            
+            // Handle login
+            if (loginForm) {
+                loginForm.addEventListener('submit', function(e) {
+                    e.preventDefault();
+                    const username = document.getElementById('username').value;
+                    const password = document.getElementById('password').value;
+                    
+                    // Simple validation (in real app, this would be server-side)
+                    if (username === 'admin' && password === 'Admin@1675') {
+                        localStorage.setItem('isLoggedIn', 'true');
+                        loginScreen.style.display = 'none';
+                        appContainer.style.display = 'block';
+                    } else {
+                        alert('Invalid credentials. Please try again.');
+                    }
+                });
+            }
+            
+            // Handle logout
+            if (logoutBtn) {
+                logoutBtn.addEventListener('click', function() {
+                    localStorage.removeItem('isLoggedIn');
+                    loginScreen.style.display = 'block';
+                    appContainer.style.display = 'none';
+                });
+            }
+            
+            // Tab navigation
+            const tabLinks = document.querySelectorAll('.tab-link');
+            const tabContents = document.querySelectorAll('.tab-content');
+            
+            tabLinks.forEach(link => {
+                link.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    
+                    // Remove active class from all tabs
+                    tabLinks.forEach(tab => tab.classList.remove('active'));
+                    tabContents.forEach(content => content.classList.add('hidden'));
+                    
+                    // Add active class to clicked tab
+                    this.classList.add('active');
+                    
+                    // Show corresponding content
+                    const tabId = this.getAttribute('data-tab');
+                    document.getElementById(tabId).classList.remove('hidden');
+                });
+            });
+            
+            // Mobile sidebar toggle
+            const toggleSidebarBtn = document.getElementById('toggleSidebar');
+            const sidebar = document.getElementById('sidebar');
+            
+            if (toggleSidebarBtn && sidebar) {
+                toggleSidebarBtn.addEventListener('click', function() {
+                    sidebar.classList.toggle('open');
+                });
+            }
+            
+            // Theme toggle
+            const themeToggle = document.getElementById('themeToggle');
+            if (themeToggle) {
+                themeToggle.addEventListener('click', function() {
+                    document.body.classList.toggle('light-theme');
+                    const icon = themeToggle.querySelector('i');
+                    if (document.body.classList.contains('light-theme')) {
+                        icon.classList.remove('fa-moon');
+                        icon.classList.add('fa-sun');
+                    } else {
+                        icon.classList.remove('fa-sun');
+                        icon.classList.add('fa-moon');
+                    }
+                });
+            }
+            
+            // Preview modal functionality
+            const previewButtons = document.querySelectorAll('.preview-btn');
+            const previewModal = document.getElementById('previewModal');
+            const closePreview = document.getElementById('closePreview');
+            
+            if (previewButtons.length > 0 && previewModal) {
+                previewButtons.forEach(button => {
+                    button.addEventListener('click', function() {
+                        previewModal.classList.remove('hidden');
+                    });
+                });
+                
+                if (closePreview) {
+                    closePreview.addEventListener('click', function() {
+                        previewModal.classList.add('hidden');
+                    });
+                }
+                
+                // Close modal when clicking outside
+                previewModal.addEventListener('click', function(e) {
+                    if (e.target === previewModal) {
+                        previewModal.classList.add('hidden');
+                    }
+                });
+            }
+            
+            // Gallery functionality
+            const galleryItems = document.querySelectorAll('.gallery-item');
+            const galleryModal = document.getElementById('galleryModal');
+            const galleryImage = document.getElementById('galleryImage');
+            const closeGallery = document.getElementById('closeGallery');
+            const prevImage = document.getElementById('prevImage');
+            const nextImage = document.getElementById('nextImage');
+            
+            let currentIndex = 0;
+            
+            if (galleryItems.length > 0 && galleryModal) {
+                galleryItems.forEach((item, index) => {
+                    item.addEventListener('click', function() {
+                        currentIndex = index;
+                        const src = this.getAttribute('data-src');
+                        galleryImage.src = src;
+                        galleryModal.classList.remove('hidden');
+                    });
+                });
+                
+                if (closeGallery) {
+                    closeGallery.addEventListener('click', function() {
+                        galleryModal.classList.add('hidden');
+                    });
+                }
+                
+                if (prevImage) {
+                    prevImage.addEventListener('click', function() {
+                        currentIndex = (currentIndex - 1 + galleryItems.length) % galleryItems.length;
+                        const src = galleryItems[currentIndex].getAttribute('data-src');
+                        galleryImage.src = src;
+                    });
+                }
+                
+                if (nextImage) {
+                    nextImage.addEventListener('click', function() {
+                        currentIndex = (currentIndex + 1) % galleryItems.length;
+                        const src = galleryItems[currentIndex].getAttribute('data-src');
+                        galleryImage.src = src;
+                    });
+                }
+                
+                // Close gallery when clicking outside
+                galleryModal.addEventListener('click', function(e) {
+                    if (e.target === galleryModal) {
+                        galleryModal.classList.add('hidden');
+                    }
+                });
+            }
+            
+            // Prompt Generator functionality
+            const openPromptGenerator = document.getElementById('openPromptGenerator');
+            const openPromptGeneratorChat = document.getElementById('openPromptGeneratorChat');
+            const promptGeneratorModal = document.getElementById('promptGeneratorModal');
+            const closePromptGenerator = document.getElementById('closePromptGenerator');
+            const cancelPrompt = document.getElementById('cancelPrompt');
+            const generatePrompt = document.getElementById('generatePrompt');
+            
+            if (openPromptGenerator && promptGeneratorModal) {
+                openPromptGenerator.addEventListener('click', function() {
+                    promptGeneratorModal.classList.remove('hidden');
+                });
+            }
+            
+            if (openPromptGeneratorChat && promptGeneratorModal) {
+                openPromptGeneratorChat.addEventListener('click', function() {
+                    promptGeneratorModal.classList.remove('hidden');
+                });
+            }
+            
+            if (closePromptGenerator) {
+                closePromptGenerator.addEventListener('click', function() {
+                    promptGeneratorModal.classList.add('hidden');
+                });
+            }
+            
+            if (cancelPrompt) {
+                cancelPrompt.addEventListener('click', function() {
+                    promptGeneratorModal.classList.add('hidden');
+                });
+            }
+            
+            if (generatePrompt) {
+                generatePrompt.addEventListener('click', function() {
+                    const subject = document.getElementById('promptSubject').value;
+                    const style = document.getElementById('promptStyle').value;
+                    const quality = document.getElementById('promptQuality').value;
+                    const details = document.getElementById('promptDetails').value;
+                    
+                    // Generate prompt based on inputs
+                    let generatedPrompt = subject;
+                    if (style) generatedPrompt += `, ${style} style`;
+                    if (quality) generatedPrompt += `, ${quality}`;
+                    if (details) generatedPrompt += `, ${details}`;
+                    
+                    // Insert generated prompt into the textarea in T2I tab
+                    const t2iTab = document.getElementById('t2i');
+                    const promptTextarea = t2iTab.querySelector('textarea');
+                    if (promptTextarea) {
+                        promptTextarea.value = generatedPrompt;
+                    }
+                    
+                    promptGeneratorModal.classList.add('hidden');
+                });
+            }
+            
+            // Initialize charts
+            initCharts();
+        });
+        
+        // Initialize charts with Chart.js
+        function initCharts() {
+            // API Status Chart
+            const apiStatusCtx = document.getElementById('apiStatusChart');
+            if (apiStatusCtx) {
+                new Chart(apiStatusCtx, {
+                    type: 'doughnut',
+                    data: {
+                        labels: ['Operational', 'Degraded', 'Offline'],
+                        datasets: [{
+                            data: [18, 4, 2],
+                            backgroundColor: [
+                                '#10b981',
+                                '#f59e0b',
+                                '#ef4444'
+                            ],
+                            borderWidth: 0
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        plugins: {
+                            legend: {
+                                position: 'right',
+                                labels: {
+                                    color: '#cbd5e1'
+                                }
+                            }
+                        }
+                    }
+                });
+            }
+            
+            // Token Usage Chart
+            const tokenUsageCtx = document.getElementById('tokenUsageChart');
+            if (tokenUsageCtx) {
+                new Chart(tokenUsageCtx, {
+                    type: 'line',
+                    data: {
+                        labels: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'],
+                        datasets: [{
+                            label: 'Tokens Used',
+                            data: [120000, 190000, 150000, 220000, 180000, 250000, 210000],
+                            borderColor: '#8b5cf6',
+                            backgroundColor: 'rgba(139, 92, 246, 0.1)',
+                            tension: 0.4,
+                            fill: true
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        plugins: {
+                            legend: {
+                                labels: {
+                                    color: '#cbd5e1'
+                                }
+                            }
+                        },
+                        scales: {
+                            y: {
+                                beginAtZero: true,
+                                grid: {
+                                    color: 'rgba(255, 255, 255, 0.1)'
+                                },
+                                ticks: {
+                                    color: '#94a3b8'
+                                }
+                            },
+                            x: {
+                                grid: {
+                                    color: 'rgba(255, 255, 255, 0.1)'
+                                },
+                                ticks: {
+                                    color: '#94a3b8'
+                                }
+                            }
+                        }
+                    }
+                });
+            }
+            
+            // Usage Distribution Chart
+            const usageDistributionCtx = document.getElementById('usageDistributionChart');
+            if (usageDistributionCtx) {
+                new Chart(usageDistributionCtx, {
+                    type: 'bar',
+                    data: {
+                        labels: ['GPT-4', 'Claude 3', 'SDXL', 'HF Models', 'Other'],
+                        datasets: [{
+                            label: 'API Calls',
+                            data: [1250, 870, 2100, 450, 320],
+                            backgroundColor: [
+                                '#6366f1',
+                                '#8b5cf6',
+                                '#0d9488',
+                                '#f59e0b',
+                                '#3b82f6'
+                            ],
+                            borderWidth: 0
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        plugins: {
+                            legend: {
+                                display: false
+                            }
+                        },
+                        scales: {
+                            y: {
+                                beginAtZero: true,
+                                grid: {
+                                    color: 'rgba(255, 255, 255, 0.1)'
+                                },
+                                ticks: {
+                                    color: '#94a3b8'
+                                }
+                            },
+                            x: {
+                                grid: {
+                                    display: false
+                                },
+                                ticks: {
+                                    color: '#94a3b8'
+                                }
+                            }
+                        }
+                    }
+                });
+            }
+            
+            // Requests Trend Chart
+            const requestsTrendCtx = document.getElementById('requestsTrendChart');
+            if (requestsTrendCtx) {
+                new Chart(requestsTrendCtx, {
+                    type: 'line',
+                    data: {
+                        labels: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun'],
+                        datasets: [{
+                            label: 'Successful Requests',
+                            data: [4200, 5100, 4800, 6200, 5900, 7100],
+                            borderColor: '#10b981',
+                            backgroundColor: 'rgba(16, 185, 129, 0.1)',
+                            tension: 0.4,
+                            fill: true
+                        }, {
+                            label: 'Failed Requests',
+                            data: [120, 95, 110, 85, 98, 75],
+                            borderColor: '#ef4444',
+                            backgroundColor: 'rgba(239, 68, 68, 0.1)',
+                            tension: 0.4,
+                            fill: true
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        plugins: {
+                            legend: {
+                                labels: {
+                                    color: '#cbd5e1'
+                                }
+                            }
+                        },
+                        scales: {
+                            y: {
+                                beginAtZero: true,
+                                grid: {
+                                    color: 'rgba(255, 255, 255, 0.1)'
+                                },
+                                ticks: {
+                                    color: '#94a3b8'
+                                }
+                            },
+                            x: {
+                                grid: {
+                                    color: 'rgba(255, 255, 255, 0.1)'
+                                },
+                                ticks: {
+                                    color: '#94a3b8'
+                                }
+                            }
+                        }
+                    }
+                });
+            }
+            
+            // Free vs Paid Chart
+            const freePaidCtx = document.getElementById('freePaidChart');
+            if (freePaidCtx) {
+                new Chart(freePaidCtx, {
+                    type: 'pie',
+                    data: {
+                        labels: ['Free Tier', 'Paid APIs'],
+                        datasets: [{
+                            data: [65, 35],
+                            backgroundColor: [
+                                '#0d9488',
+                                '#3b82f6'
+                            ],
+                            borderWidth: 0
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        plugins: {
+                            legend: {
+                                position: 'right',
+                                labels: {
+                                    color: '#cbd5e1'
+                                }
+                            }
+                        }
+                    }
+                });
+            }
+        }
+    </script>
+</body>
+</html>
